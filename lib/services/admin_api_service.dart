@@ -1132,6 +1132,19 @@ class AdminApiService {
     }
   }
 
+  /// Dipanggil sekali waktu app dibuka (dashboard_shell initState) buat
+  /// priming badge 'Chat Admin' dengan angka yang benar dari server -
+  /// tanpa ini badge cuma nyala kalau ada pesan baru masuk SELAMA app
+  /// kebuka, tidak kelihatan kalau pesannya masuk waktu app ditutup.
+  Future<int> getMyInternalChatUnreadCount() async {
+    try {
+      final res = await _dio.get('/internal-chat/my-conversation/unread-count', options: Options(headers: await _authHeaders()));
+      return (res.data['unread'] ?? 0) as int;
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
   /// Dipakai sisi admin/super_admin - daftar semua percakapan dengan
   /// staf marketing/agen.
   Future<List<Map<String, dynamic>>> getInternalChatConversations() async {

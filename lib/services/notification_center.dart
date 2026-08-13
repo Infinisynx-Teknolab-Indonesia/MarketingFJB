@@ -58,6 +58,20 @@ class NotificationCenter extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Ambil angka unread yang SEBENARNYA dari server waktu app baru
+  /// dibuka - lihat catatan di getMyInternalChatUnreadCount(). Dipanggil
+  /// dari dashboard_shell initState Marketing/CS Panel.
+  Future<void> primeChatAdminUnread() async {
+    try {
+      final count = await AdminApiService().getMyInternalChatUnreadCount();
+      chatAdminUnread = count;
+      notifyListeners();
+    } catch (_) {
+      // Diamkan - badge cuma nggak ke-prime, tetap akan naik normal
+      // begitu ada pesan baru masuk lewat socket.
+    }
+  }
+
   void markCsTeamRead() {
     if (csTeamUnread == 0) return;
     csTeamUnread = 0;

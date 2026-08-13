@@ -35,6 +35,7 @@ class _DashboardShellState extends State<DashboardShell> {
     _loadSesi();
     SocketService().connect();
     NotificationCenter().attachSocketListeners();
+    NotificationCenter().primeChatAdminUnread();
   }
 
   Future<void> _loadSesi() async {
