@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/admin_api_service.dart';
 
@@ -17,15 +18,23 @@ class _MarketingOverviewPageState extends State<MarketingOverviewPage> {
   int _totalPencari = 0;
   bool _isLoading = true;
   String? _error;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _load(silent: true));
   }
 
-  Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() { _isLoading = true; _error = null; });
     try {
       final results = await Future.wait([
         AdminApiService().getMyIklan(),

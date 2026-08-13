@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'services/admin_api_service.dart';
+import 'services/server_config.dart';
 import 'views/login_page.dart';
 import 'views/dashboard_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Muat pilihan Server/Local yang tersimpan (kalau ada), lalu terapkan
+  // ke AdminApiService SEBELUM widget apa pun sempat manggil API.
+  await ServerConfig().load();
+  AdminApiService().applyServerConfig();
 
   // Setup jendela desktop - ukuran nyaman buat tabel & sidebar.
   await windowManager.ensureInitialized();
@@ -13,7 +19,7 @@ void main() async {
     size: Size(1280, 800),
     minimumSize: Size(1024, 700),
     center: true,
-    title: 'FJB Batam - Marketing Panel',
+    title: 'FJB Batam - Agen & Marketing Panel',
   );
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.show();
@@ -30,7 +36,7 @@ class AdminApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'FJB Batam - Marketing Panel',
+      title: 'FJB Batam - Agen & Marketing Panel',
       theme: ThemeData(
         useMaterial3: false,
         primaryColor: const Color(0xFFB8860B),

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../services/admin_api_service.dart';
+import '../../services/server_config.dart';
 
 /// Halaman utama Marketing Panel: input Iklan (Jual Beli) dan Loker
 /// (lowongan & pencari kerja) atas nama akun member miliknya sendiri,
@@ -79,15 +81,23 @@ class _IklanTabState extends State<_IklanTab> {
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
   String? _error;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _load(silent: true));
   }
 
-  Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() { _isLoading = true; _error = null; });
     try {
       final data = await AdminApiService().getMyIklan();
       setState(() { _items = data; _isLoading = false; });
@@ -136,7 +146,7 @@ class _IklanTabState extends State<_IklanTab> {
                             separatorBuilder: (_, __) => const Divider(height: 1),
                             itemBuilder: (context, index) {
                               final item = _items[index];
-                              final fotoUrl = item['foto'] != null ? 'https://fjbbatam.com/images/gambariklan/${item['foto']}' : null;
+                              final fotoUrl = item['foto'] != null ? '${ServerConfig().imageBaseUrl}/images/gambariklan/${item['foto']}' : null;
                               return ListTile(
                                 leading: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
@@ -332,15 +342,23 @@ class _LowonganTabState extends State<_LowonganTab> {
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
   String? _error;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _load(silent: true));
   }
 
-  Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() { _isLoading = true; _error = null; });
     try {
       final data = await AdminApiService().getMyLowongan();
       setState(() { _items = data; _isLoading = false; });
@@ -572,15 +590,23 @@ class _PencariTabState extends State<_PencariTab> {
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
   String? _error;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _load(silent: true));
   }
 
-  Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() { _isLoading = true; _error = null; });
     try {
       final data = await AdminApiService().getMyPencari();
       setState(() { _items = data; _isLoading = false; });

@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 import '../services/admin_api_service.dart';
+import '../services/socket_service.dart';
+import '../services/notification_center.dart';
+import '../widgets/notif_bell_icon.dart';
 import 'login_page.dart';
 import 'pages/marketing_overview_page.dart';
 import 'pages/marketing_input_page.dart';
+import 'pages/marketing_blank_page.dart';
+import 'pages/staff_chat_page.dart';
 
-/// Dashboard Marketing Panel - aplikasi TERPISAH dari Admin Panel & CS
-/// Panel. Login role 'marketing' saja (dicek di server, lihat
-/// APP_ALLOWED_ROLES di admin_api.py). Menu sengaja cuma 2: Ringkasan
-/// (ringan) dan Input Konten - marketing HANYA bisa input Iklan & Loker
-/// atas nama akunnya sendiri, tidak bisa moderasi apapun.
+/// Dashboard Agen & Marketing Panel - aplikasi TERPISAH dari Admin Panel
+/// & CS Panel. Login role 'agen' ATAU 'marketing' (dicek di server,
+/// lihat APP_ALLOWED_ROLES di admin_api.py). Tampilannya BEDA sesuai
+/// role:
+///   - agen      : Ringkasan, Input Konten (Iklan/Loker), Chat Admin
+///   - marketing : Chat Admin saja + halaman placeholder kosong (belum
+///                 ada fitur - menunggu pengembangan lanjutan)
 class DashboardShell extends StatefulWidget {
   const DashboardShell({super.key});
 
@@ -19,27 +26,56 @@ class DashboardShell extends StatefulWidget {
 class _DashboardShellState extends State<DashboardShell> {
   int _selectedIndex = 0;
   String? _username;
-
-  static const _menuItems = [
-    _MenuItem('Ringkasan', Icons.dashboard_outlined),
-    _MenuItem('Input Konten', Icons.add_box_outlined),
-  ];
+  String? _role;
+  bool _isLoadingRole = true;
 
   @override
   void initState() {
     super.initState();
     _loadSesi();
+    SocketService().connect();
+    NotificationCenter().attachSocketListeners();
   }
 
   Future<void> _loadSesi() async {
     final username = await AdminApiService().currentUsername;
-    setState(() => _username = username);
+    final role = await AdminApiService().currentRole;
+    setState(() {
+      _username = username;
+      _role = role;
+      _isLoadingRole = false;
+    });
   }
 
-  List<Widget> get _pages => [
+  bool get _isAgen => _role == 'agen';
+
+  List<_MenuItem> get _menuItems {
+    if (_isAgen) {
+      return const [
+        _MenuItem('Ringkasan', Icons.dashboard_outlined),
+        _MenuItem('Input Konten', Icons.add_box_outlined),
+        _MenuItem('Chat Admin', Icons.support_agent_outlined),
+      ];
+    }
+    return const [
+      _MenuItem('Beranda', Icons.dashboard_outlined),
+      _MenuItem('Chat Admin', Icons.support_agent_outlined),
+    ];
+  }
+
+  List<Widget> get _pages {
+    if (_isAgen) {
+      return [
         MarketingOverviewPage(onNavigate: _navigateByLabel),
         const MarketingInputPage(),
+        const StaffChatPage(),
       ];
+    }
+    return const [
+      MarketingBlankPage(),
+      StaffChatPage(),
+    ];
+  }
 
   void _navigateByLabel(String label) {
     final index = _menuItems.indexWhere((m) => m.label == label);
@@ -51,7 +87,7 @@ class _DashboardShellState extends State<DashboardShell> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Keluar?'),
-        content: const Text('Kamu akan keluar dari Marketing Panel.'),
+        content: const Text('Kamu akan keluar dari Agen & Marketing Panel.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
           TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Keluar', style: TextStyle(color: Colors.red))),
@@ -61,12 +97,19 @@ class _DashboardShellState extends State<DashboardShell> {
     if (konfirmasi != true) return;
 
     await AdminApiService().logout();
+    SocketService().disconnect();
     if (!mounted) return;
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginPage()));
   }
 
+  static const _roleLabel = {'agen': 'Agen', 'marketing': 'Marketing'};
+
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingRole) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     final selectedIndex = _selectedIndex.clamp(0, _pages.length - 1);
 
     return Scaffold(
@@ -85,7 +128,7 @@ class _DashboardShellState extends State<DashboardShell> {
                       Icon(Icons.campaign, color: Colors.white, size: 26),
                       SizedBox(width: 10),
                       Expanded(
-                        child: Text('FJB Batam\nMarketing Panel', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5, height: 1.3)),
+                        child: Text('FJB Batam\nAgen & Marketing', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5, height: 1.3)),
                       ),
                     ],
                   ),
@@ -104,7 +147,7 @@ class _DashboardShellState extends State<DashboardShell> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(_username!, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-                              const Text('Marketing', style: TextStyle(color: Colors.white54, fontSize: 10.5)),
+                              Text(_roleLabel[_role] ?? _role ?? '-', style: const TextStyle(color: Colors.white54, fontSize: 10.5)),
                             ],
                           ),
                         ),
@@ -146,7 +189,32 @@ class _DashboardShellState extends State<DashboardShell> {
           Expanded(
             child: Container(
               color: const Color(0xFFF1F3F8),
-              child: IndexedStack(index: selectedIndex, children: _pages),
+              child: Column(
+                children: [
+                  Container(
+                    height: 52,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB)))),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        AnimatedBuilder(
+                          animation: NotificationCenter(),
+                          builder: (context, _) => NotifBellIcon(
+                            icon: Icons.forum_outlined,
+                            count: NotificationCenter().chatAdminUnread,
+                            tooltip: 'Chat Admin',
+                            onTap: () => _navigateByLabel('Chat Admin'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: IndexedStack(index: selectedIndex, children: _pages),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/admin_api_service.dart';
+import '../services/server_config.dart';
 import 'dashboard_shell.dart';
 
 class LoginPage extends StatefulWidget {
@@ -12,19 +13,42 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _localUrlController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
 
+  // Mode koneksi - dipakai buat testing sebelum konek ke server beneran.
+  // Nilai awal diambil dari pilihan yang sudah tersimpan (ServerConfig).
+  late bool _useLocal = ServerConfig().useLocal;
+
+  @override
+  void initState() {
+    super.initState();
+    _localUrlController.text = ServerConfig().localUrl;
+  }
+
   @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _localUrlController.dispose();
     super.dispose();
   }
 
+  /// Simpan pilihan mode + URL local, lalu langsung terapkan ke
+  /// AdminApiService supaya percobaan login berikutnya pakai baseUrl baru.
+  Future<void> _terapkanModeKoneksi() async {
+    await ServerConfig().setMode(
+      useLocal: _useLocal,
+      localUrl: _useLocal ? _localUrlController.text : null,
+    );
+    AdminApiService().applyServerConfig();
+  }
+
   Future<void> _handleLogin() async {
+    await _terapkanModeKoneksi();
     if (!_formKey.currentState!.validate()) return;
     setState(() {
       _isLoading = true;
@@ -73,9 +97,64 @@ class _LoginPageState extends State<LoginPage> {
                   child: Text('FJB Batam', style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w600)),
                 ),
                 const Center(
-                  child: Text('Marketing Panel', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  child: Text('Agen & Marketing Panel', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 20),
+                // ===== Mode Koneksi (Server / Local) - buat testing =====
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF6F7FB),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.dns_outlined, size: 16, color: Colors.grey.shade600),
+                          const SizedBox(width: 6),
+                          Text('Mode Koneksi', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ChoiceChip(
+                              label: const Text('Server'),
+                              selected: !_useLocal,
+                              onSelected: (v) => setState(() => _useLocal = false),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ChoiceChip(
+                              label: const Text('Local'),
+                              selected: _useLocal,
+                              onSelected: (v) => setState(() => _useLocal = true),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_useLocal) ...[
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _localUrlController,
+                          style: const TextStyle(fontSize: 12.5),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            labelText: 'URL server local',
+                            hintText: 'http://localhost:5050/admin/api',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
                 if (_errorMessage != null) ...[
                   Container(
                     padding: const EdgeInsets.all(10),

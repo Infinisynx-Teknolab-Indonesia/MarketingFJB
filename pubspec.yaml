@@ -1,5 +1,5 @@
 name: fjbbatam_marketing_panel
-description: "Marketing Panel FJB Batam - aplikasi desktop Windows khusus role Marketing"
+description: "Agen & Marketing Panel FJB Batam - aplikasi desktop untuk role Agen dan Marketing"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   dio: ^5.4.0
+  socket_io_client: ^2.0.3+1
   flutter_secure_storage: ^9.2.2
   window_manager: ^0.4.3
   url_launcher: ^6.2.5

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'server_config.dart';
 
 /// Service tunggal buat semua komunikasi ke admin_api.py (backend REST
 /// khusus admin - terpisah dari GraphQL yang dipakai app mobile).
@@ -9,15 +10,19 @@ class AdminApiService {
   factory AdminApiService() => _instance;
   AdminApiService._internal();
 
-  // GANTI base URL ini kalau backend-nya pindah domain/port.
-  static const String baseUrl = "https://fjbbatam.com/admin/api";
-
   final _storage = const FlutterSecureStorage();
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: baseUrl,
+    baseUrl: ServerConfig().apiBaseUrl,
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 15),
   ));
+
+  /// Dipanggil habis ServerConfig().load() (saat start app) atau habis
+  /// user ganti mode Server/Local di halaman login - supaya request
+  /// berikutnya langsung pakai baseUrl yang baru tanpa restart app.
+  void applyServerConfig() {
+    _dio.options.baseUrl = ServerConfig().apiBaseUrl;
+  }
 
   String? _cachedToken;
   String? _cachedRole;
@@ -63,6 +68,14 @@ class AdminApiService {
   Future<bool> get isCS async {
     final role = await currentRole;
     return role == 'cs';
+  }
+
+  /// True kalau role == 'agen' - kemampuan input Iklan/Loker (dulu
+  /// namanya 'marketing'). Beda dengan role 'marketing' yang sekarang
+  /// kosong dulu (placeholder) - lihat migration_v8.
+  Future<bool> get isAgen async {
+    final role = await currentRole;
+    return role == 'agen';
   }
 
   Future<void> _simpanSesi(String token, String username, String role) async {
@@ -492,6 +505,8 @@ class AdminApiService {
     }
   }
 
+  /// [role] wajib 'agen' (kemampuan input Iklan/Loker, dulu namanya
+  /// 'marketing') atau 'marketing' (kosong dulu, placeholder).
   Future<void> createMarketing({
     required String dashboardUsername,
     required String dashboardPassword,
@@ -500,6 +515,7 @@ class AdminApiService {
     required String namaLengkap,
     String? telepon,
     String? alamat,
+    String role = 'agen',
   }) async {
     try {
       await _dio.post('/marketing', data: {
@@ -510,6 +526,7 @@ class AdminApiService {
         "nama_lengkap": namaLengkap,
         "telepon": telepon,
         "alamat": alamat,
+        "role": role,
       }, options: Options(headers: await _authHeaders()));
     } on DioException catch (e) {
       throw _mapError(e);
@@ -1074,6 +1091,55 @@ class AdminApiService {
         "status": status,
         "catatan_admin": catatanAdmin,
       }, options: Options(headers: await _authHeaders()));
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
+  // ================= CHAT INTERNAL (Admin <-> Marketing/Agen) =================
+
+  /// Dipakai sisi staf (marketing/agen) - percakapan pribadinya sendiri
+  /// dengan Admin, dibuat otomatis kalau belum ada.
+  Future<Map<String, dynamic>> getMyInternalChat() async {
+    try {
+      final res = await _dio.get('/internal-chat/my-conversation', options: Options(headers: await _authHeaders()));
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
+  Future<void> sendInternalChatAsStaff(String message) async {
+    try {
+      await _dio.post('/internal-chat/my-conversation/send', data: {"message": message}, options: Options(headers: await _authHeaders()));
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
+  /// Dipakai sisi admin/super_admin - daftar semua percakapan dengan
+  /// staf marketing/agen.
+  Future<List<Map<String, dynamic>>> getInternalChatConversations() async {
+    try {
+      final res = await _dio.get('/internal-chat/conversations', options: Options(headers: await _authHeaders()));
+      return List<Map<String, dynamic>>.from(res.data['items']);
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getInternalChatMessages(int idConv) async {
+    try {
+      final res = await _dio.get('/internal-chat/conversations/$idConv/messages', options: Options(headers: await _authHeaders()));
+      return List<Map<String, dynamic>>.from(res.data['items']);
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
+  Future<void> replyInternalChatAsAdmin(int idConv, String message) async {
+    try {
+      await _dio.post('/internal-chat/conversations/$idConv/reply', data: {"message": message}, options: Options(headers: await _authHeaders()));
     } on DioException catch (e) {
       throw _mapError(e);
     }
