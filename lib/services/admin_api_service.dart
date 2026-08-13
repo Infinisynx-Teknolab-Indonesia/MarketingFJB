@@ -27,6 +27,7 @@ class AdminApiService {
   String? _cachedToken;
   String? _cachedRole;
   String? _cachedUsername;
+  int? _cachedAdminId;
 
   Future<String?> get currentToken async {
     _cachedToken ??= await _storage.read(key: "admin_token");
@@ -41,6 +42,17 @@ class AdminApiService {
   Future<String?> get currentUsername async {
     _cachedUsername ??= await _storage.read(key: "admin_username");
     return _cachedUsername;
+  }
+
+  /// admin.id milik akun yang sedang login - dipakai buat filter event
+  /// socket realtime supaya notifikasi/suara TIDAK muncul buat pesan yang
+  /// dikirim oleh diri sendiri (server broadcast ke seluruh tim, termasuk
+  /// balik ke pengirimnya sendiri).
+  Future<int?> get currentAdminId async {
+    if (_cachedAdminId != null) return _cachedAdminId;
+    final raw = await _storage.read(key: "admin_id");
+    _cachedAdminId = raw != null ? int.tryParse(raw) : null;
+    return _cachedAdminId;
   }
 
   /// True kalau role >= 'admin' (admin ATAU super_admin) - dipakai buat
@@ -78,13 +90,15 @@ class AdminApiService {
     return role == 'agen';
   }
 
-  Future<void> _simpanSesi(String token, String username, String role) async {
+  Future<void> _simpanSesi(String token, String username, String role, [int? adminId]) async {
     _cachedToken = token;
     _cachedUsername = username;
     _cachedRole = role;
+    _cachedAdminId = adminId;
     await _storage.write(key: "admin_token", value: token);
     await _storage.write(key: "admin_username", value: username);
     await _storage.write(key: "admin_role", value: role);
+    if (adminId != null) await _storage.write(key: "admin_id", value: "$adminId");
   }
 
   Future<void> logout() async {
@@ -99,6 +113,7 @@ class AdminApiService {
     _cachedToken = null;
     _cachedRole = null;
     _cachedUsername = null;
+    _cachedAdminId = null;
     await _storage.deleteAll();
   }
 
@@ -152,7 +167,7 @@ class AdminApiService {
   Future<void> login(String username, String password, {required String app}) async {
     try {
       final res = await _dio.post('/login', data: {"username": username, "password": password, "app": app});
-      await _simpanSesi(res.data['accessToken'], res.data['username'], res.data['role']);
+      await _simpanSesi(res.data['accessToken'], res.data['username'], res.data['role'], res.data['adminId'] as int?);
     } on DioException catch (e) {
       final status = e.response?.statusCode;
       // Sengaja disamaratakan: salah password, salah role buat aplikasi
